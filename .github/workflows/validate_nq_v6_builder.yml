@@ -1,0 +1,40 @@
+name: validate-nq-v6-builder
+
+on:
+  push:
+    paths:
+      - '_tmp/NQ_V6_TRUE_TOP10_AMD_BUILDER.ipynb'
+      - '.github/workflows/validate_nq_v6_builder.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install nbformat
+      - name: Validate notebook JSON and Python syntax
+        run: |
+          python - <<'PY'
+          import ast, json, nbformat
+          from pathlib import Path
+          p = Path('_tmp/NQ_V6_TRUE_TOP10_AMD_BUILDER.ipynb')
+          nb = nbformat.read(p, as_version=4)
+          nbformat.validate(nb)
+          errors = []
+          for i, cell in enumerate(nb.cells):
+              if cell.cell_type == 'code':
+                  src = cell.source
+                  # Colab shell magic is valid in Colab but not Python AST.
+                  src = '\n'.join('pass' if line.lstrip().startswith('!') else line for line in src.splitlines())
+                  try:
+                      ast.parse(src)
+                  except SyntaxError as exc:
+                      errors.append((i, str(exc)))
+          if errors:
+              raise SystemExit(f'Syntax errors: {errors}')
+          print(f'VALID: {len(nb.cells)} cells')
+          PY
